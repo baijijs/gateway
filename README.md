@@ -29,3 +29,7 @@ Gateway for baiji application
   }
 }
 ```
+
+License
+-------
+* [The MIT license](LICENSE)
