@@ -1,0 +1,30 @@
+{
+  "name": "baiji-gateway",
+  "version": "0.0.1-alpha.1",
+  "description": "Gateway for baiji application",
+  "main": "index.js",
+  "scripts": {
+    "test": "mocha"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/baijijs/gateway.git"
+  },
+  "keywords": [
+    "gateway",
+    "baiji"
+  ],
+  "author": "Felix Liu",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/baijijs/gateway/issues"
+  },
+  "homepage": "https://github.com/baijijs/gateway#readme",
+  "dependencies": {
+    "lodash": "^4.17.4"
+  },
+  "devDependencies": {
+    "chai": "^4.1.1",
+    "mocha": "^3.5.0"
+  }
+}
