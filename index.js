@@ -1,8 +1,8 @@
 'use strict';
 
-// allowedAPIs: Whitelist api list
-// forbiddenAPIs: Blacklist api list
-// max: Maximum process quantity
+// allowedAPIs: Whitelist api list, support unix glob pattern
+// forbiddenAPIs: Blacklist api list, support unix glob pattern
+// max: Maximum requests for once
 
 // Request body defination
 // {
@@ -22,14 +22,23 @@
 
 const GATEWAY_METHOD_NAME = '__gateway__';
 const _ = require('lodash');
+const assert = require('assert');
+const mm = require('micromatch');
 
 module.exports = function baijiGatewayPlugin(app, options) {
-  options = options || {};
+  options = Object.assign({}, options);
   options.max = options.max || 5;
-  options.allowedAPIs = options.allowedAPIs || [];
-  options.forbiddenAPIs = options.forbiddenAPIs || [];
-  options.onError = options.onError;
+  options.allowedAPIs = castToArray(options.allowedAPIs);
+  options.forbiddenAPIs = castToArray(options.forbiddenAPIs);
 
+  if (options.onError) {
+    assert(
+      typeof options.onError === 'function',
+      '`options.onError` must be a valid function'
+    );
+  }
+
+  // Cache all methods
   const ALL_METHODS = {};
   app.composedMethods().map(method => {
     // Ignore gateway method
@@ -38,21 +47,22 @@ module.exports = function baijiGatewayPlugin(app, options) {
     ALL_METHODS[method.fullName()] = method;
   });
 
+  // Invoke method by name
   function invokeApiByName(name, ctx, args) {
     let method = ALL_METHODS[name];
 
-    let newCtx = ctx.adapter.Context.create(
+    let mockCtx = ctx.adapter.Context.create(
       ctx.request,
       ctx.response,
       method,
       ctx.options
     );
 
-    newCtx.setArgs(args || {});
-    newCtx._isMock = true;
+    mockCtx.setArgs(args || {});
+    mockCtx._isMock = true;
 
     return new Promise(function(resolve, reject) {
-      method.invoke(newCtx, function(res) {
+      method.invoke(mockCtx, function(res) {
         if (res.error) return reject(res.error);
         resolve(res.result);
       });
@@ -62,7 +72,7 @@ module.exports = function baijiGatewayPlugin(app, options) {
   // Cast val to array
   function castToArray(val) {
     val = val || [];
-    val = Array.isArray(val) ? val : [val];
+    val = Array.isArray(val) ? val : (val == null ? [] : [val]);
     return val;
   }
 
@@ -89,18 +99,22 @@ module.exports = function baijiGatewayPlugin(app, options) {
     }
   }
 
+  // Execute all api requests according to definitions
   function executeApis(schema, ctx) {
     schema = schema || {};
 
     let result = {};
 
-    let stack = _(schema).map(function(api, name) {
+    let stack = _(schema)
+
+    // Convert all api dependencies to array
+    .map(function(api, name) {
       api = api || {};
       api.dependencies = castToArray(api.dependencies);
       return { name, api };
     })
 
-    // Compare api priority
+    // Compare api priority by dependencies
     .tap(function(res) {
       return res.sort(function(a, b) {
         if (a.api.dependencies.indexOf(b.name) > -1) return 1;
@@ -138,32 +152,34 @@ module.exports = function baijiGatewayPlugin(app, options) {
       });
     }).value();
 
-    return execStack(stack).then(() => {
-      return result;
-    });
+    return execStack(stack).then(() => result);
   }
 
   // Validate schema and return proper error
   function validateSchema(schema) {
     schema = schema || {};
 
-    let apisCount = _.keys(schema).length;
+    let forbiddenAPIs = options.forbiddenAPIs;
+    let allowedAPIs = options.allowedAPIs;
+
+    let forbidden = false;
+
+    let apis = _.map(schema, (key, val) => val.method);
+    let apisCount = apis.length;
 
     // Check whether the apis count is within tolerable range
     if (apisCount === 0) return new Error('Invalid Request Body');
-    if (apisCount > options.max) return new Error('Requests Quantity Exceeded');
+    if (apisCount > options.max) return new Error('Max Requests Exceeded');
 
     // Check whether the apis are within whitelist or without blacklist
     // Blacklist has heigher priority
-    let isForbidden = _.some(schema, function(obj) {
-      obj = obj || {};
-      if (options.forbiddenAPIs.length && options.forbiddenAPIs.indexOf(obj.method) > -1) return true;
-      if (options.allowedAPIs.length && options.allowedAPIs.indexOf(obj.method) === -1) return true;
-    });
+    if (forbiddenAPIs.length && mm(apis, forbiddenAPIs).length) forbidden = true;
+    if (allowedAPIs.length && mm(apis, options.allowedAPIs).length !== apis.length) forbidden = true;
 
-    if (isForbidden) return new Error('Forbidden Request');
+    if (forbidden) return new Error('Forbidden Request');
   }
 
+  // Define Gateway main method
   app.define(GATEWAY_METHOD_NAME, {
     description: 'Baiji gateway plugin method',
     route: { path: 'gateway', verb: 'post' }
@@ -171,13 +187,13 @@ module.exports = function baijiGatewayPlugin(app, options) {
     let schema = ctx.body || {};
     let error = validateSchema(schema);
     if (error) {
-      if (typeof options.onError === 'function') {
-        return options.onError(ctx, error);
+      if (options.onError) {
+        return options.onError(error, ctx, next);
       } else {
-        return ctx.done({ error: error.message });
+        return ctx.throw(413, error.message);
       }
     } else {
-      executeApis(ctx.body, ctx).then(res => {
+      return executeApis(ctx.body, ctx).then(res => {
         ctx.done(res, next);
       }).catch(err => {
         ctx.done(err, next);
