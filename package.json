@@ -1,6 +1,6 @@
 {
   "name": "baiji-gateway",
-  "version": "0.0.1-alpha.1",
+  "version": "0.0.1-alpha.2",
   "description": "Gateway for baiji application",
   "main": "index.js",
   "scripts": {
@@ -25,6 +25,7 @@
     "micromatch": "^3.1.0"
   },
   "devDependencies": {
+    "baiji": "^0.8.13",
     "chai": "^4.1.2",
     "mocha": "^3.5.3"
   }

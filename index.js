@@ -117,8 +117,18 @@ module.exports = function baijiGatewayPlugin(app, options) {
     // Compare api priority by dependencies
     .tap(function(res) {
       return res.sort(function(a, b) {
-        if (a.api.dependencies.indexOf(b.name) > -1) return 1;
-        if (b.api.dependencies.indexOf(a.name) > -1) return -1;
+        let a_dep = a.api.dependencies;
+        let b_dep = b.api.dependencies;
+
+        if (b_dep.indexOf(a.name) > -1) return -1;
+        if (a_dep.indexOf(b.name) > -1) return 1;
+
+        if (a_dep.length === 0 && b_dep.length !== 0) return -1;
+        if (b_dep.length === 0 && a_dep.length !== 0) return 1;
+
+        if (a_dep.length < b_dep.length) return -1;
+        if (a_dep.length > b_dep.length) return 1;
+
         return 0;
       });
     })
@@ -164,11 +174,15 @@ module.exports = function baijiGatewayPlugin(app, options) {
 
     let forbidden = false;
 
-    let apis = _.map(schema, (key, val) => val.method);
+    let hasError;
+    let apis = _.map(schema, val => {
+      if (!val.method) hasError = true;
+      return val.method;
+    });
     let apisCount = apis.length;
 
     // Check whether the apis count is within tolerable range
-    if (apisCount === 0) return new Error('Invalid Request Body');
+    if (apisCount === 0 || hasError) return new Error('Invalid Request Body');
     if (apisCount > options.max) return new Error('Max Requests Exceeded');
 
     // Check whether the apis are within whitelist or without blacklist
@@ -190,13 +204,18 @@ module.exports = function baijiGatewayPlugin(app, options) {
       if (options.onError) {
         return options.onError(error, ctx, next);
       } else {
-        return ctx.throw(413, error.message);
+        ctx.status(422);
+        return ctx.done({ status: 422, message: error.message }, next);
       }
     } else {
       return executeApis(ctx.body, ctx).then(res => {
         ctx.done(res, next);
       }).catch(err => {
-        ctx.done(err, next);
+        if (err && options.onError) {
+          return options.onError(err, ctx, next);
+        }
+
+        return ctx.done(err, next);
       });
     }
   });
