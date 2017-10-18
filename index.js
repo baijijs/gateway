@@ -129,6 +129,9 @@ module.exports = function baijiGatewayPlugin(app, options) {
         if (a_dep.length < b_dep.length) return -1;
         if (a_dep.length > b_dep.length) return 1;
 
+        if (a.name > b.name) return -1;
+        if (a.name < b.name) return 1;
+
         return 0;
       });
     })
