@@ -1,9 +1,5 @@
 'use strict';
 
-// allowedAPIs: Whitelist api list, support unix glob pattern
-// forbiddenAPIs: Blacklist api list, support unix glob pattern
-// max: Maximum requests for once
-
 // Request body defination
 // {
 //   articles: {
@@ -20,16 +16,64 @@
 //   }
 // }
 
-const GATEWAY_METHOD_NAME = '__gateway__';
 const _ = require('lodash');
 const assert = require('assert');
 const mm = require('micromatch');
 
+// Constant
+const DEFAULT_GATEWAY_METHOD_NAME = '__gateway__';
+const DEFAULT_GATEWAY_ROUTE_PATH = 'gateway';
+const DEFAULT_GATEWAY_HTTP_METHOD = 'post';
+
+// Create custom error with statusCode
+function createError(statusCode, message) {
+  let err = new Error(message);
+  err.statusCode = err.status = statusCode == null ? statusCode : 500;
+
+  err.toJSON = function() {
+    return {
+      statusCode: err.statusCode,
+      status: err.status,
+      message: err.message
+    };
+  };
+
+  return err;
+}
+
+// Cast val to array
+function castToArray(val) {
+  val = val || [];
+  val = Array.isArray(val) ? val : (val == null ? [] : [val]);
+  return val;
+}
+
+// allowedAPIs: Whitelist api list, support unix glob pattern
+// forbiddenAPIs: Blacklist api list, support unix glob pattern
+// max: Maximum requests for once
+
+/**
+ * Baiji Gateway Plugin
+ *
+ * @param {Application} app baiji Application instance
+ * @param {Object} options
+ * @param {Array} options.allowedAPIs Whitelist api list, support unix glob pattern
+ * @param {Array} options.forbiddenAPIs Blacklist api list, support unix glob pattern
+ * @param {Number} options.max Maximum requests for once
+ * @param {String} options.name Custom gateway method name
+ * @param {String} options.path Custom gateway route path
+ * @param {String} options.verb Custom gateway http method
+ *
+ * @public
+ */
 module.exports = function baijiGatewayPlugin(app, options) {
   options = Object.assign({}, options);
-  options.max = options.max || 5;
+  options.max = options.max || 50;
   options.allowedAPIs = castToArray(options.allowedAPIs);
   options.forbiddenAPIs = castToArray(options.forbiddenAPIs);
+  options.name = options.name || DEFAULT_GATEWAY_METHOD_NAME;
+  options.path = options.path || DEFAULT_GATEWAY_ROUTE_PATH;
+  options.verb = options.verb || DEFAULT_GATEWAY_HTTP_METHOD;
 
   if (options.onError) {
     assert(
@@ -42,7 +86,7 @@ module.exports = function baijiGatewayPlugin(app, options) {
   const ALL_METHODS = {};
   app.composedMethods().map(method => {
     // Ignore gateway method
-    if (method.name === GATEWAY_METHOD_NAME) return;
+    if (method.name === options.name) return;
 
     ALL_METHODS[method.fullName()] = method;
   });
@@ -67,13 +111,6 @@ module.exports = function baijiGatewayPlugin(app, options) {
         resolve(res.result);
       });
     });
-  }
-
-  // Cast val to array
-  function castToArray(val) {
-    val = val || [];
-    val = Array.isArray(val) ? val : (val == null ? [] : [val]);
-    return val;
   }
 
   // Execute apis by specific orders
@@ -185,21 +222,21 @@ module.exports = function baijiGatewayPlugin(app, options) {
     let apisCount = apis.length;
 
     // Check whether the apis count is within tolerable range
-    if (apisCount === 0 || hasError) return new Error('Invalid Request Body');
-    if (apisCount > options.max) return new Error('Max Requests Exceeded');
+    if (apisCount === 0 || hasError) return createError(422, 'Invalid Request Body');
+    if (apisCount > options.max) return createError(406, 'Max Requests Exceeded');
 
     // Check whether the apis are within whitelist or without blacklist
     // Blacklist has heigher priority
     if (forbiddenAPIs.length && mm(apis, forbiddenAPIs).length) forbidden = true;
     if (allowedAPIs.length && mm(apis, options.allowedAPIs).length !== apis.length) forbidden = true;
 
-    if (forbidden) return new Error('Forbidden Request');
+    if (forbidden) return createError(403, 'Forbidden Request');
   }
 
   // Define Gateway main method
-  app.define(GATEWAY_METHOD_NAME, {
+  app.define(options.name, {
     description: 'Baiji gateway plugin method',
-    route: { path: 'gateway', verb: 'post' }
+    route: { path: options.path, verb: options.verb }
   }, function(ctx, next) {
     let schema = ctx.body || {};
     let error = validateSchema(schema);
@@ -207,8 +244,8 @@ module.exports = function baijiGatewayPlugin(app, options) {
       if (options.onError) {
         return options.onError(error, ctx, next);
       } else {
-        ctx.status(422);
-        return ctx.done({ status: 422, message: error.message }, next);
+        ctx.status(error.status);
+        return ctx.done(error, next);
       }
     } else {
       return executeApis(ctx.body, ctx).then(res => {
@@ -217,7 +254,7 @@ module.exports = function baijiGatewayPlugin(app, options) {
         if (err && options.onError) {
           return options.onError(err, ctx, next);
         }
-
+        ctx.status(err.status);
         return ctx.done(err, next);
       });
     }
