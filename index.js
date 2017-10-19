@@ -28,7 +28,7 @@ const DEFAULT_GATEWAY_HTTP_METHOD = 'post';
 // Create custom error with statusCode
 function createError(statusCode, message) {
   let err = new Error(message);
-  err.statusCode = err.status = statusCode == null ? statusCode : 500;
+  err.statusCode = err.status = statusCode == null ? 500 : statusCode;
 
   err.toJSON = function() {
     return {
@@ -83,13 +83,30 @@ module.exports = function baijiGatewayPlugin(app, options) {
   }
 
   // Cache all methods
-  const ALL_METHODS = {};
-  app.composedMethods().map(method => {
-    // Ignore gateway method
-    if (method.name === options.name) return;
+  const ALL_METHODS = filterAllowedMethods();
 
-    ALL_METHODS[method.fullName()] = method;
-  });
+  // Filter all methods according to `allowedAPIs` and `forbiddenAPIs` option
+  function filterAllowedMethods() {
+    let allMethods = {};
+    let allMethodNames = [];
+
+    app.composedMethods().map(method => {
+      // Ignore gateway method
+      if (method.name === options.name) return;
+
+      let methodName = method.fullName();
+
+      allMethodNames.push(methodName);
+
+      allMethods[methodName] = method;
+    });
+
+    // Filter all methods
+    let filteredMethods = _.difference(allMethodNames, mm(allMethodNames, options.forbiddenAPIs));
+    filteredMethods = mm(filteredMethods, options.allowedAPIs);
+
+    return _.pick(allMethods, filteredMethods);
+  }
 
   // Invoke method by name
   function invokeApiByName(name, ctx, args) {
@@ -228,14 +245,31 @@ module.exports = function baijiGatewayPlugin(app, options) {
     // Check whether the apis are within whitelist or without blacklist
     // Blacklist has heigher priority
     if (forbiddenAPIs.length && mm(apis, forbiddenAPIs).length) forbidden = true;
-    if (allowedAPIs.length && mm(apis, options.allowedAPIs).length !== apis.length) forbidden = true;
+    if (allowedAPIs.length && mm(apis, allowedAPIs).length !== apis.length) forbidden = true;
 
     if (forbidden) return createError(403, 'Forbidden Request');
+  }
+
+  function buildNotes() {
+    let title = 'Baiji gateway plugin method';
+    let maxLength = 0;
+    _.map(ALL_METHODS, (method, name) => {
+      let length = name.length;
+      if (maxLength < length) maxLength = length;
+    });
+
+    let notes = _.map(ALL_METHODS, (method, name) => {
+      let paddedName = _.padEnd(`${name}`, maxLength, ' ');
+      return `${paddedName} => ${method.description}`;
+    }).join('\n');
+
+    return `## ${title}\n\n### Support Methods:\n\`\`\`\n${notes} \n\`\`\``;
   }
 
   // Define Gateway main method
   app.define(options.name, {
     description: 'Baiji gateway plugin method',
+    notes: buildNotes(),
     route: { path: options.path, verb: options.verb }
   }, function(ctx, next) {
     let schema = ctx.body || {};
