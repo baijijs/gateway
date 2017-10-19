@@ -247,9 +247,10 @@ module.exports = function baijiGatewayPlugin(app, options) {
     let forbidden = false;
 
     let hasError;
-    let apis = _.map(schema, val => {
+    let apis = [];
+    _.map(schema, val => {
       if (!val.method) hasError = true;
-      return val.method;
+      if (~apis.indexOf(val.method)) apis.push(val.method);
     });
     let apisCount = apis.length;
 
