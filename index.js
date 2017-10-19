@@ -25,6 +25,7 @@ const semver = require('semver');
 const DEFAULT_GATEWAY_METHOD_NAME = '__gateway__';
 const DEFAULT_GATEWAY_ROUTE_PATH = 'gateway';
 const DEFAULT_GATEWAY_HTTP_METHOD = 'post';
+const MINIMAL_VERSION_REQUIRED = '0.8.15';
 
 // Create custom error with statusCode
 function createError(statusCode, message) {
@@ -71,8 +72,8 @@ module.exports = function baijiGatewayPlugin(app, options) {
 
   // Check baiji version
   assert(
-    semver.satisfies(app.constructor.VERSION, '>= 0.8.14'),
-    'baiji-gateway plugin require baiji version larger than 0.8.14'
+    semver.satisfies(app.constructor.VERSION, `>= ${MINIMAL_VERSION_REQUIRED}`),
+    `baiji-gateway plugin require baiji version larger than ${MINIMAL_VERSION_REQUIRED}`
   );
 
   options = Object.assign({}, options);
