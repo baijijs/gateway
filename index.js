@@ -250,7 +250,7 @@ module.exports = function baijiGatewayPlugin(app, options) {
     let apis = [];
     _.map(schema, val => {
       if (!val.method) hasError = true;
-      if (~apis.indexOf(val.method)) apis.push(val.method);
+      if (!~apis.indexOf(val.method)) apis.push(val.method);
     });
     let apisCount = apis.length;
 
@@ -266,6 +266,7 @@ module.exports = function baijiGatewayPlugin(app, options) {
     if (forbidden) return createError(403, 'Forbidden Request');
   }
 
+  // Build special notes for swagger
   function buildNotes() {
     let title = 'Baiji gateway plugin method';
     let maxLength = 0;
