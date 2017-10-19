@@ -131,14 +131,15 @@ module.exports = function baijiGatewayPlugin(app, options) {
     mockCtx._isMock = true;
 
     return new Promise(function(resolve, reject) {
-      method.on('error', function(res) {
+      mockCtx.on('error', function(res) {
         reject(res.error);
       });
 
-      method.on('finish', function(res) {
+      mockCtx.on('finish', function(res) {
         resolve(res.result);
       });
 
+      // Invoke method with mocked context
       method.invoke(mockCtx);
     });
   }
