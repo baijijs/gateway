@@ -248,9 +248,18 @@ module.exports = function baijiGatewayPlugin(app, options) {
 
     let hasError;
     let apis = [];
-    _.map(schema, val => {
-      if (!val.method) hasError = true;
-      if (!~apis.indexOf(val.method)) apis.push(val.method);
+    _.map(schema, (api, name) => {
+      // Check if api not contains a valid method
+      if (!api.method) hasError = true;
+
+      // Check if api depends on itself
+      if (
+        api.dependencies &&
+        api.dependencies.length &&
+        ~api.dependencies.indexOf(name)
+      ) hasError = true;
+
+      if (!~apis.indexOf(api.method)) apis.push(api.method);
     });
     let apisCount = apis.length;
 
@@ -283,6 +292,16 @@ module.exports = function baijiGatewayPlugin(app, options) {
     return `## ${title}\n\n### Support Methods:\n\`\`\`\n${notes} \n\`\`\``;
   }
 
+  // Force obj1 key order by obj2
+  function forceOrder(obj1, obj2) {
+    let obj = {};
+    _.map(obj2, function(val, key) {
+      obj[key] = obj1[String(key)];
+    });
+
+    return obj;
+  }
+
   // Define Gateway main method
   app.define(options.name, {
     description: 'Baiji gateway plugin method',
@@ -299,8 +318,14 @@ module.exports = function baijiGatewayPlugin(app, options) {
         return ctx.done(error, next);
       }
     } else {
-      return executeApis(ctx.body, ctx).then(res => {
-        ctx.done(res, next);
+      return executeApis(schema, ctx).then(res => {
+        // Force result has the same order with request schema
+        res = forceOrder(res, schema);
+
+        // Make sure result has same type of schema
+        let data = Array.isArray(schema) ? _.values(res) : res;
+
+        ctx.done(data, next);
       }).catch(err => {
         if (err && options.onError) {
           return options.onError(err, ctx, next);
