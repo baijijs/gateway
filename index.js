@@ -19,6 +19,7 @@
 const _ = require('lodash');
 const assert = require('assert');
 const mm = require('micromatch');
+const semver = require('semver');
 
 // Constant
 const DEFAULT_GATEWAY_METHOD_NAME = '__gateway__';
@@ -67,6 +68,13 @@ function castToArray(val) {
  * @public
  */
 module.exports = function baijiGatewayPlugin(app, options) {
+
+  // Check baiji version
+  assert(
+    semver.satisfies(app.constructor.VERSION, '>= 0.8.14'),
+    'baiji-gateway plugin require baiji version larger than 0.8.14'
+  );
+
   options = Object.assign({}, options);
   options.max = options.max || 50;
   options.allowedAPIs = castToArray(options.allowedAPIs);
@@ -123,10 +131,15 @@ module.exports = function baijiGatewayPlugin(app, options) {
     mockCtx._isMock = true;
 
     return new Promise(function(resolve, reject) {
-      method.invoke(mockCtx, function(res) {
-        if (res.error) return reject(res.error);
+      method.on('error', function(res) {
+        reject(res.error);
+      });
+
+      method.on('finish', function(res) {
         resolve(res.result);
       });
+
+      method.invoke(mockCtx);
     });
   }
 
