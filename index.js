@@ -25,7 +25,7 @@ const semver = require('semver');
 const DEFAULT_GATEWAY_METHOD_NAME = '__gateway__';
 const DEFAULT_GATEWAY_ROUTE_PATH = 'gateway';
 const DEFAULT_GATEWAY_HTTP_METHOD = 'post';
-const MINIMAL_VERSION_REQUIRED = '0.8.15';
+const MINIMAL_VERSION_REQUIRED = '0.8.16';
 
 // Create custom error with statusCode
 function createError(statusCode, message) {
@@ -92,10 +92,10 @@ module.exports = function baijiGatewayPlugin(app, options) {
   }
 
   // Cache all methods
-  const ALL_METHODS = filterAllowedMethods();
+  let ALL_METHODS = [];
 
   // Filter all methods according to `allowedAPIs` and `forbiddenAPIs` option
-  function filterAllowedMethods() {
+  function filterAllowedMethods(app) {
     let allMethods = {};
     let allMethodNames = [];
 
@@ -302,37 +302,42 @@ module.exports = function baijiGatewayPlugin(app, options) {
     return obj;
   }
 
-  // Define Gateway main method
-  app.define(options.name, {
-    description: 'Baiji gateway plugin method',
-    notes: buildNotes(),
-    route: { path: options.path, verb: options.verb }
-  }, function(ctx, next) {
-    let schema = ctx.body || {};
-    let error = validateSchema(schema);
-    if (error) {
-      if (options.onError) {
-        return options.onError(error, ctx, next);
-      } else {
-        ctx.status(error.status);
-        return ctx.done(error, next);
-      }
-    } else {
-      return executeApis(schema, ctx).then(res => {
-        // Force result has the same order with request schema
-        res = forceOrder(res, schema);
+  // Add Gateway method after mounted
+  app.on('mount', function() {
+    ALL_METHODS = filterAllowedMethods(this);
 
-        // Make sure result has same type of schema
-        let data = Array.isArray(schema) ? _.values(res) : res;
-
-        ctx.done(data, next);
-      }).catch(err => {
-        if (err && options.onError) {
-          return options.onError(err, ctx, next);
+    // Define Gateway main method
+    this.define(options.name, {
+      description: 'Baiji gateway plugin method',
+      notes: buildNotes(),
+      route: { path: options.path, verb: options.verb }
+    }, function(ctx, next) {
+      let schema = ctx.body || {};
+      let error = validateSchema(schema);
+      if (error) {
+        if (options.onError) {
+          return options.onError(error, ctx, next);
+        } else {
+          ctx.status(error.status);
+          return ctx.done(error, next);
         }
-        ctx.status(err.status);
-        return ctx.done(err, next);
-      });
-    }
+      } else {
+        return executeApis(schema, ctx).then(res => {
+          // Force result has the same order with request schema
+          res = forceOrder(res, schema);
+
+          // Make sure result has same type of schema
+          let data = Array.isArray(schema) ? _.values(res) : res;
+
+          ctx.done(data, next);
+        }).catch(err => {
+          if (err && options.onError) {
+            return options.onError(err, ctx, next);
+          }
+          ctx.status(err.status);
+          return ctx.done(err, next);
+        });
+      }
+    });
   });
 };
