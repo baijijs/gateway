@@ -25,7 +25,7 @@ const semver = require('semver');
 const DEFAULT_GATEWAY_METHOD_NAME = '__gateway__';
 const DEFAULT_GATEWAY_ROUTE_PATH = 'gateway';
 const DEFAULT_GATEWAY_HTTP_METHOD = 'post';
-const MINIMAL_VERSION_REQUIRED = '0.8.16';
+const MINIMAL_VERSION_REQUIRED = '0.8.17';
 
 // Create custom error with statusCode
 function createError(statusCode, message) {
@@ -302,7 +302,7 @@ module.exports = function baijiGatewayPlugin(app, options) {
     return obj;
   }
 
-  // Add Gateway method after mounted
+  // Refresh Gateway methods after mounted
   app.on('mount', function() {
     ALL_METHODS = filterAllowedMethods(this);
 
@@ -340,4 +340,6 @@ module.exports = function baijiGatewayPlugin(app, options) {
       }
     });
   });
+
+  return null;
 };
