@@ -128,8 +128,8 @@ module.exports = function baijiGatewayPlugin(app, options) {
       _.assign({}, ctx.options, { argsBuilt: true })
     );
 
-    mockCtx.setArgs(args || {}, true);
     mockCtx._isMock = true;
+    mockCtx.setArgs(args || {}, true);
 
     return new Promise(function(resolve, reject) {
       mockCtx.on('error', function(res) {
