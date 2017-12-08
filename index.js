@@ -125,7 +125,7 @@ module.exports = function baijiGatewayPlugin(app, options) {
       ctx.request,
       ctx.response,
       method,
-      _.assign({}, ctx.options, { argsBuilt: false })
+      _.assign({}, ctx.options, { argsBuilt: true })
     );
 
     mockCtx.setArgs(args || {}, true);
