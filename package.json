@@ -1,6 +1,6 @@
 {
   "name": "baiji-gateway",
-  "version": "0.0.1-alpha.8",
+  "version": "0.0.1-alpha.9",
   "description": "Gateway for baiji application",
   "main": "index.js",
   "scripts": {
