@@ -25,7 +25,7 @@ const semver = require('semver');
 const DEFAULT_GATEWAY_METHOD_NAME = '__gateway__';
 const DEFAULT_GATEWAY_ROUTE_PATH = 'gateway';
 const DEFAULT_GATEWAY_HTTP_METHOD = 'post';
-const MINIMAL_VERSION_REQUIRED = '0.8.21';
+const MINIMAL_VERSION_REQUIRED = '0.8.25';
 
 // Create custom error with statusCode
 function createError(statusCode, message) {
@@ -121,15 +121,13 @@ module.exports = function baijiGatewayPlugin(app, options) {
   function invokeApiByName(name, ctx, args) {
     let method = ALL_METHODS[name];
 
+    // Create mock context to imitate actual context
     let mockCtx = ctx.adapter.Context.create(
       ctx.request,
       ctx.response,
       method,
       _.assign({}, ctx.options, { argsBuilt: true })
-    );
-
-    mockCtx._isMock = true;
-    mockCtx.setArgs(args || {}, true);
+    ).markAsMock().setArgs(args || {}, true);
 
     return new Promise(function(resolve, reject) {
       mockCtx.on('error', function(res) {
