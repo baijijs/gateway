@@ -2,7 +2,7 @@
 
 > Under active development
 
-Gateway for baiji application
+Gateway for [baiji](https://github.com/baijijs/baiji) application
 
 ## Installation
 
