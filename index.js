@@ -174,63 +174,63 @@ module.exports = function baijiGatewayPlugin(app, options) {
 
     let stack = _(schema)
 
-    // Convert all api dependencies to array
-    .map(function(api, name) {
-      api = api || {};
-      api.dependencies = castToArray(api.dependencies);
-      return { name, api };
-    })
+      // Convert all api dependencies to array
+      .map(function(api, name) {
+        api = api || {};
+        api.dependencies = castToArray(api.dependencies);
+        return { name, api };
+      })
 
-    // Compare api priority by dependencies
-    .tap(function(res) {
-      return res.sort(function(a, b) {
-        let a_dep = a.api.dependencies;
-        let b_dep = b.api.dependencies;
+      // Compare api priority by dependencies
+      .tap(function(res) {
+        return res.sort(function(a, b) {
+          let a_dep = a.api.dependencies;
+          let b_dep = b.api.dependencies;
 
-        if (b_dep.indexOf(a.name) > -1) return -1;
-        if (a_dep.indexOf(b.name) > -1) return 1;
+          if (b_dep.indexOf(a.name) > -1) return -1;
+          if (a_dep.indexOf(b.name) > -1) return 1;
 
-        if (a_dep.length === 0 && b_dep.length !== 0) return -1;
-        if (b_dep.length === 0 && a_dep.length !== 0) return 1;
+          if (a_dep.length === 0 && b_dep.length !== 0) return -1;
+          if (b_dep.length === 0 && a_dep.length !== 0) return 1;
 
-        if (a_dep.length < b_dep.length) return -1;
-        if (a_dep.length > b_dep.length) return 1;
+          if (a_dep.length < b_dep.length) return -1;
+          if (a_dep.length > b_dep.length) return 1;
 
-        if (a.name > b.name) return -1;
-        if (a.name < b.name) return 1;
+          if (a.name > b.name) return -1;
+          if (a.name < b.name) return 1;
 
-        return 0;
-      });
-    })
+          return 0;
+        });
+      })
 
-    // Group apis by dependencies
-    .tap(function(res) {
-      let group = [];
-      let order = [];
-      res.map(item => {
-        let key = item.api.dependencies.map(String).join('.');
-        if (order.indexOf(key) === -1) order.push(key);
-        let index = order.indexOf(key);
-        if (!group[index]) group[index] = [];
-        group[index].push(item);
-      });
-      return group;
-    })
+      // Group apis by dependencies
+      .tap(function(res) {
+        let group = [];
+        let order = [];
+        res.map(item => {
+          let key = item.api.dependencies.map(String).join('.');
+          if (order.indexOf(key) === -1) order.push(key);
+          let index = order.indexOf(key);
+          if (!group[index]) group[index] = [];
+          group[index].push(item);
+        });
+        return group;
+      })
 
-    // Convert to executeable stack
-    .map(function(item) {
-      item = castToArray(item);
-      return item.map(i => {
-        return function apiInvoker() {
-          return invokeApiByName(i.api.method, ctx, i.api.params)
-            .then(res => {
-              result[i.name] = res;
-            }).catch(err => {
-              result[i.name] = err;
-            });
-        };
-      });
-    }).value();
+      // Convert to executeable stack
+      .map(function(item) {
+        item = castToArray(item);
+        return item.map(i => {
+          return function apiInvoker() {
+            return invokeApiByName(i.api.method, ctx, i.api.params)
+              .then(res => {
+                result[i.name] = res;
+              }).catch(err => {
+                result[i.name] = err;
+              });
+          };
+        });
+      }).value();
 
     return execStack(stack).then(() => result);
   }
